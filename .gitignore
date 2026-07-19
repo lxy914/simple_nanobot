@@ -1,0 +1,58 @@
+# ── Python 字节码 / 缓存 ────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# ── 虚拟环境 ────────────────────────────────────
+.venv/
+venv/
+env/
+pyvenv.cfg
+
+# ── 打包 / 构建产物 ─────────────────────────────
+*.egg-info/
+*.egg
+dist/
+build/
+pip-wheel-metadata/
+share/python-wheels/
+
+# ── 测试 / 类型检查 / lint 缓存 ─────────────────
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+
+# ── 环境变量 / 密钥（切勿提交！）─────────────────
+.env
+.env.*
+!.env.example
+
+# ── 日志 ────────────────────────────────────────
+*.log
+
+# ── 操作系统 / 编辑器 ───────────────────────────
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+*.swp
+.swo
+
+# 编辑器 / IDE
+.vscode/
+.idea/
+
+# ── 本项目生成的产物 ────────────────────────────
+botpy.log
+
+# ── WorkBuddy 工具内部数据（非源码，按需跟踪）────
+.workbuddy/

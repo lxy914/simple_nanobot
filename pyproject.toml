@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "simple-nanobot"
+version = "0.1.0"
+description = "轻量级 AI 智能体框架教学实现 —— 约 2000 行 Python 代码，手把手理解 AI Agent 核心原理"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "simple-nanobot contributors" },
+]
+keywords = ["ai", "agent", "llm", "learning", "nanobot"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    # 运行依赖
+    "qq-botpy>=1.2.1",
+    "openai>=1.0",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0", "pytest-asyncio>=0.21"]
+
+[tool.setuptools]
+py-modules = ["bus", "context", "events", "loop", "main", "provider", "runner", "tools"]
+
+[tool.setuptools.packages.find]
+include = ["channels", "channels.*", "skills", "skills.*"]
+
+[tool.setuptools.package-data]
+skills = ["*.md", "**/*.md"]
+
+[project.scripts]
+simple-nanobot = "main:run"
+
+[project.urls]
+Homepage = "https://github.com/nanobot-ai/nanobot"
+Documentation = "https://github.com/nanobot-ai/nanobot/tree/main/simple_nanobot"
+Source = "https://github.com/nanobot-ai/nanobot"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
