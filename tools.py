@@ -11,6 +11,7 @@ ToolRegistry 是工具箱，用字典管理所有工具：
 
 import asyncio
 import subprocess
+import sys
 from pathlib import Path
 from abc import ABC, abstractmethod
 
@@ -77,7 +78,7 @@ class ShellTool(Tool):
                     "properties": {
                         "command": {
                             "type": "string",
-                            "description": "要执行的命令，例如 'ls -la' 或 'echo hello'",
+                            "description": "要执行的shell命令",
                         },
                     },
                     "required": ["command"],
@@ -89,6 +90,14 @@ class ShellTool(Tool):
         command = args.get("command", "")
 
         def _run():
+            # Windows 下使用 pwsh（PowerShell 7），而非默认的 cmd.exe
+            if sys.platform == "win32":
+                return subprocess.run(
+                    ["pwsh", "-NoProfile", "-Command", command],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
             return subprocess.run(
                 command,
                 shell=True,
@@ -101,6 +110,8 @@ class ShellTool(Tool):
             result = await asyncio.to_thread(_run)
         except subprocess.TimeoutExpired:
             return "错误：命令执行超时（30 秒）"
+        except FileNotFoundError:
+            return "错误：找不到 pwsh（PowerShell 7），请确认已安装且位于 PATH 中"
         except Exception as e:
             return f"错误：{e}"
 

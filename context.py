@@ -13,7 +13,35 @@ system 消息的拼接顺序（用 --- 分隔）：
     4. 工具使用说明
 """
 
+import os
+import platform
+import shutil
+from pathlib import Path
+
 from skills.skills_loader import SkillsLoader
+
+
+def _detect_environment() -> str:
+    """
+    动态探测当前运行环境，生成环境描述。
+
+    检测内容（与 ShellTool 的实际行为保持一致）：
+    - 操作系统：Windows / Linux / Darwin
+    - Shell：Windows 下检测 pwsh（ShellTool 用它执行命令）；
+      其他系统读 SHELL 环境变量（ShellTool 用系统默认 shell）
+    - 当前工作目录：文件操作类工具需要知道路径基准
+    """
+    os_name = platform.system()
+    if os_name == "Windows":
+        shell = "pwsh (PowerShell 7)" if shutil.which("pwsh") else "cmd"
+    else:
+        shell = os.environ.get("SHELL", "sh")
+
+    return (
+        f"操作系统: {os_name}\n"
+        f"Shell: {shell}\n"
+        f"当前工作目录: {Path.cwd()}"
+    )
 
 
 class ContextBuilder:
@@ -30,8 +58,8 @@ class ContextBuilder:
 
         # 第 1 段：身份定义
         parts.append(
-            "你是一个简易的 AI 助手。\n\n"
-            "运行环境：Linux 终端\n\n"
+            "你是一个简易的 AI 助手。\n"
+            f"运行环境:\n{_detect_environment()}\n"
             "当用户需要查看文件、创建文件、执行操作时，请先调用相应工具。\n"
             "收到工具执行结果后，用中文总结结果告诉用户。"
         )
@@ -50,7 +78,8 @@ class ContextBuilder:
                 parts.append(
                     "# Available Skills\n\n"
                     "以下技能可供使用，参考其指导来完成任务：\n\n"
-                    f"{summary}"
+                    f"{summary}\n\n"
+                    "如需使用某个技能，请调用 load_skill 工具获取其完整内容。"
                 )
 
         # 第 4 段：工具使用说明（从 ToolRegistry 动态生成）

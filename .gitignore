@@ -56,3 +56,9 @@ botpy.log
 
 # ── WorkBuddy 工具内部数据（非源码，按需跟踪）────
 .workbuddy/
+
+# ── Qoder 工具内部数据（非源码）───────────────
+.qoder/
+
+# ── 测试输出产物（test_system_prompt.py 生成）──
+tests/output/
