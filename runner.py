@@ -37,26 +37,27 @@ class AgentRunner:
         initial_messages: list[dict],
         tools: ToolRegistry,
         provider: LLMProvider,
-        max_iterations: int = 10,
-    ) -> tuple[str, list[dict]]:
+        max_iterations: int = 50,
+    ) -> str:
         """
         执行一次完整的 AI 对话。
 
         参数：
-        - initial_messages: 初始消息列表（system + history + user message）
+        - initial_messages: 初始消息列表（system + history + user message）。
+                           ⚠️ 会被原地修改：本方法直接在该列表上累积
+                           tool_calls / tool 结果 / assistant 回复
         - tools:            工具箱
         - provider:         AI 提供商（真 AI 或 Mock）
         - max_iterations:   最大对话轮数，防止无限循环
 
         返回：
-        - (reply_text, final_messages): 最终回复文本和完整的消息列表
-          （含 system、历史、tool_calls、tool 结果、assistant 回复），
-          调用方可保存完整消息列表用于下一轮对话历史恢复。
+        - 最终回复文本。完整的消息列表通过 initial_messages 传出
+          （调用方传入的列表已被原地累积，可直接读取）。
         """
 
-        # messages 在整个对话中不断累积
-        messages = list(initial_messages)
-        tools_used = []
+        # 直接在传入列表上累积（不拷贝），让调用方直接拿到完整消息
+        messages = initial_messages
+        tools_used = set()
 
         print(f"\n{'='*50}")
         print(f"开始 AI 对话，最多 {max_iterations} 轮")
@@ -67,7 +68,7 @@ class AgentRunner:
             print(f"当前消息数: {len(messages)}")
 
             # 第 1 步：调用 AI
-            response = await provider.generate(
+            response: LLMResponse = await provider.generate(
                 messages=messages,
                 tools=tools.get_definitions(),
             )
@@ -77,7 +78,7 @@ class AgentRunner:
             # 情况 A：AI 调用出错
             if response.finish_reason == "error":
                 print(f"AI 调用失败: {response.content}")
-                return f"抱歉，AI 服务暂时不可用：{response.content}", messages
+                return f"抱歉，AI 服务暂时不可用：{response.content}"
 
             # 情况 B：AI 要调工具
             if response.tool_calls:
@@ -87,7 +88,7 @@ class AgentRunner:
                 for tc in response.tool_calls:
                     # 执行工具时打印参数（长值截断，避免刷屏）
                     args_str = ", ".join(
-                        f"{k}={str(v)[:200]}{'...' if len(str(v)) > 200 else ''}"
+                        f"{k}={str(v)[:50]}{'...' if len(str(v)) > 50 else ''}"
                         for k, v in tc.arguments.items()
                     )
                     print(f"  调用工具 {tc.name}({args_str})")
@@ -110,8 +111,8 @@ class AgentRunner:
 
                     # 2b. 执行工具
                     result = await tools.execute(tc.name, tc.arguments) or "(工具执行失败)"
-                    tools_used.append(tc.name)
-                    print(f"  工具 {tc.name} 执行结果: {str(result)[:100]}...")
+                    tools_used.add(tc.name)
+                    print(f"  工具 {tc.name} 执行结果: {str(result)[:50]}...")
 
                     # 2c. 把工具结果追加到 messages
                     messages.append({
@@ -126,7 +127,7 @@ class AgentRunner:
 
             # 情况 B：AI 给了文本回复
             final_text = response.content or "(空回复)"
-            print(f"AI 返回文本: {final_text[:100]}...")
+            print(f"AI 返回文本: {final_text[:50]}...")
 
             # 把 AI 的文本回复追加到 messages
             messages.append({"role": "assistant", "content": final_text})
@@ -135,7 +136,7 @@ class AgentRunner:
             print(f"对话结束，共 {iteration + 1} 轮，使用工具: {tools_used}")
             print(f"{'='*50}")
 
-            return final_text, messages
+            return final_text
 
         # 超出最大轮数
-        return "抱歉，我思考太久了，请换个方式问我。", messages
+        return "抱歉，我思考太久了，请换个方式问我。"

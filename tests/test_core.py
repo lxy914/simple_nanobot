@@ -130,16 +130,18 @@ class TestAgentRunner:
                 return LLMResponse(content="你好呀!", finish_reason="stop")
 
         runner = AgentRunner()
-        reply, msgs = await runner.run(
-            initial_messages=[
-                {"role": "system", "content": "bot"},
-                {"role": "user", "content": "hello"},
-            ],
+        messages = [
+            {"role": "system", "content": "bot"},
+            {"role": "user", "content": "hello"},
+        ]
+        reply = await runner.run(
+            initial_messages=messages,
             tools=tools,
             provider=TextProvider(),
         )
         assert reply == "你好呀!"
-        assert msgs[-1] == {"role": "assistant", "content": "你好呀!"}
+        # 消息列表被原地累积，调用方直接读取传入的列表
+        assert messages[-1] == {"role": "assistant", "content": "你好呀!"}
 
     async def test_tool_call_run(self, tools):
         class ToolCallProvider(LLMProvider):
@@ -159,19 +161,20 @@ class TestAgentRunner:
                 return LLMResponse(content="执行完毕", finish_reason="stop")
 
         runner = AgentRunner()
-        reply, msgs = await runner.run(
-            initial_messages=[
-                {"role": "system", "content": "bot"},
-                {"role": "user", "content": "帮我看文件"},
-            ],
+        messages = [
+            {"role": "system", "content": "bot"},
+            {"role": "user", "content": "帮我看文件"},
+        ]
+        reply = await runner.run(
+            initial_messages=messages,
             tools=tools,
             provider=ToolCallProvider(),
         )
         assert reply == "执行完毕"
         # verify tool_calls and tool result are in messages
-        roles = [m["role"] for m in msgs]
+        roles = [m["role"] for m in messages]
         assert "tool" in roles
-        assert msgs[-1] == {"role": "assistant", "content": "执行完毕"}
+        assert messages[-1] == {"role": "assistant", "content": "执行完毕"}
 
     async def test_error_finish_reason(self, tools):
         class ErrorProvider(LLMProvider):
@@ -179,7 +182,7 @@ class TestAgentRunner:
                 return LLMResponse(content="API 挂了", finish_reason="error")
 
         runner = AgentRunner()
-        reply, _ = await runner.run(
+        reply = await runner.run(
             initial_messages=[
                 {"role": "system", "content": "bot"},
                 {"role": "user", "content": "hello"},
@@ -201,7 +204,7 @@ class TestAgentRunner:
                 )
 
         runner = AgentRunner()
-        reply, _ = await runner.run(
+        reply = await runner.run(
             initial_messages=[
                 {"role": "system", "content": "bot"},
                 {"role": "user", "content": "help"},

@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from tools import ShellTool
+from tools import ShellTool, _decode_output
 
 
 class TestShellToolExecute:
@@ -20,17 +20,16 @@ class TestShellToolExecute:
             patch("tools.sys.platform", "win32"),
             patch("tools.subprocess.run") as mock_run,
         ):
-            mock_run.return_value.stdout = "ok"
-            mock_run.return_value.stderr = ""
+            mock_run.return_value.stdout = b"ok"
+            mock_run.return_value.stderr = b""
             mock_run.return_value.returncode = 0
 
             result = await ShellTool().execute({"command": "echo hello"})
 
-            # 验证调用参数
+            # 验证调用参数（bytes 模式，不依赖 locale 编码）
             mock_run.assert_called_once_with(
                 ["pwsh", "-NoProfile", "-Command", "echo hello"],
                 capture_output=True,
-                text=True,
                 timeout=30,
             )
             assert result == "ok"
@@ -41,8 +40,8 @@ class TestShellToolExecute:
             patch("tools.sys.platform", "win32"),
             patch("tools.subprocess.run") as mock_run,
         ):
-            mock_run.return_value.stdout = ""
-            mock_run.return_value.stderr = ""
+            mock_run.return_value.stdout = b""
+            mock_run.return_value.stderr = b""
             mock_run.return_value.returncode = 0
 
             await ShellTool().execute({"command": "dir"})
@@ -59,8 +58,8 @@ class TestShellToolExecute:
             patch("tools.sys.platform", "linux"),
             patch("tools.subprocess.run") as mock_run,
         ):
-            mock_run.return_value.stdout = "ok"
-            mock_run.return_value.stderr = ""
+            mock_run.return_value.stdout = b"ok"
+            mock_run.return_value.stderr = b""
             mock_run.return_value.returncode = 0
 
             await ShellTool().execute({"command": "ls -la"})
@@ -69,7 +68,6 @@ class TestShellToolExecute:
                 "ls -la",
                 shell=True,
                 capture_output=True,
-                text=True,
                 timeout=30,
             )
 
@@ -118,8 +116,8 @@ class TestShellToolExecute:
             patch("tools.sys.platform", "win32"),
             patch("tools.subprocess.run") as mock_run,
         ):
-            mock_run.return_value.stdout = "stdout msg"
-            mock_run.return_value.stderr = "stderr msg"
+            mock_run.return_value.stdout = b"stdout msg"
+            mock_run.return_value.stderr = b"stderr msg"
             mock_run.return_value.returncode = 0
 
             result = await ShellTool().execute({"command": "echo test"})
@@ -134,8 +132,8 @@ class TestShellToolExecute:
             patch("tools.sys.platform", "win32"),
             patch("tools.subprocess.run") as mock_run,
         ):
-            mock_run.return_value.stdout = ""
-            mock_run.return_value.stderr = ""
+            mock_run.return_value.stdout = b""
+            mock_run.return_value.stderr = b""
             mock_run.return_value.returncode = 1
 
             result = await ShellTool().execute({"command": "exit 1"})
@@ -148,10 +146,45 @@ class TestShellToolExecute:
             patch("tools.sys.platform", "win32"),
             patch("tools.subprocess.run") as mock_run,
         ):
-            mock_run.return_value.stdout = ""
-            mock_run.return_value.stderr = ""
+            mock_run.return_value.stdout = b""
+            mock_run.return_value.stderr = b""
             mock_run.return_value.returncode = 0
 
             result = await ShellTool().execute({"command": "Write-Output ''"})
 
             assert "命令执行成功" in result
+
+    # ── 输出解码 ──────────────────────────────────────────────────────
+
+    async def test_utf8_output_decoded(self):
+        """UTF-8 输出（officecli 等）应正确解码"""
+        with (
+            patch("tools.sys.platform", "win32"),
+            patch("tools.subprocess.run") as mock_run,
+        ):
+            mock_run.return_value.stdout = "中文帮助信息".encode("utf-8")
+            mock_run.return_value.stderr = b""
+            mock_run.return_value.returncode = 0
+
+            result = await ShellTool().execute({"command": "officecli help"})
+
+            assert "中文帮助信息" in result
+
+    async def test_gbk_output_decoded(self):
+        """GBK 输出（pwsh 中文 Windows 默认）应正确解码"""
+        with (
+            patch("tools.sys.platform", "win32"),
+            patch("tools.subprocess.run") as mock_run,
+        ):
+            mock_run.return_value.stdout = "中文输出".encode("gbk")
+            mock_run.return_value.stderr = b""
+            mock_run.return_value.returncode = 0
+
+            result = await ShellTool().execute({"command": "Write-Output '测试'"})
+
+            assert "中文输出" in result
+
+    def test_decode_output_fallback_replace(self):
+        """无法解码的字节流不应崩溃，回退替换符"""
+        decoded = _decode_output(b"\xff\xfe\x00\x01")
+        assert isinstance(decoded, str)

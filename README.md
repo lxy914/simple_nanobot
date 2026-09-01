@@ -8,7 +8,7 @@
 - **多通道支持**：CLI（命令行）+ QQ（botpy WebSocket）双通道
 - **真实大模型**：OpenAI 兼容 API（`openai.AsyncOpenAI`），支持 DeepSeek、通义千问等
 - **4 个工具**：shell / read_file / write_file / list_dir
-- **技能系统**：3 个 SKILL.md 技能（memory / summarize / file-ops）
+- **技能系统**：SKILL.md 技能（officecli / tavily-search），渐进式加载，AI 用 read_file 读取完整内容
 - **4 状态 Agent 循环**：RESTORE → BUILD → RUN → RESPOND
 - **中文注释**：所有公开方法均有详细中文文档字符串
 
@@ -58,6 +58,14 @@ QQ_APP_ID=你的AppID
 QQ_SECRET=你的Secret
 ```
 
+## 技能系统
+
+技能是 `skills/<技能名>/SKILL.md` 文件，frontmatter 声明元数据（name / description / always），正文是给 AI 的操作指南。机制对齐原版 nanobot：
+
+- **always: true**：每次会话都完整注入 system prompt
+- **渐进式加载**：普通技能只在 system prompt 列出摘要（名称 + 描述 + 绝对路径），AI 使用技能前必须先 `read_file` 加载对应 SKILL.md
+- **身份契约**：frontmatter 的 name 必须与目录名一致，且匹配 `[a-z0-9-]` 格式，否则该技能被跳过
+
 ## 运行测试
 
 ```bash
@@ -90,10 +98,9 @@ simple_nanobot/            # 项目根目录
 │   ├── manager.py  #   ChannelManager
 │   └── __init__.py
 └── skills/         # 技能系统
-    ├── skills_loader.py  # SkillsLoader
-    ├── memory/SKILL.md
-    ├── summarize/SKILL.md
-    └── file-ops/SKILL.md
+    ├── skills_loader.py  # SkillsLoader（yaml 解析 + $引用 + 摘要）
+    ├── officecli/SKILL.md
+    └── tavily-search/SKILL.md
 ```
 
 ## 许可证

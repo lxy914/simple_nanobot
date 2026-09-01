@@ -100,9 +100,10 @@ class AgentLoop:
               f"{len(history)}条历史 + 当前消息")
 
         # ── 状态 3: RUN ──────────────────────────────────
-        # 调用 AI 进行多轮对话
+        # 调用 AI 进行多轮对话（runner 会在 messages 上原地累积新消息）
         print(f"[状态机] RUN: 启动 AI 对话")
-        reply, runner_messages = await self.runner.run(
+        base_len = len(messages)
+        reply = await self.runner.run(
             initial_messages=messages,
             tools=self.tools,
             provider=self.provider,
@@ -113,14 +114,12 @@ class AgentLoop:
         # 把 AI 的回复放进出站队列
         print(f"[状态机] RESPOND: 输出回复")
 
-        # 保存本轮新增消息（runner 产生的所有新消息）到历史
-        # runner 返回的 messages 包含 initial_messages + 新增的 tool_calls/tool/assistant
-        # 只保存 runner 新增的部分 + 用户消息，避免重复
-        new_messages = runner_messages[len(messages):]
+        # 保存本轮新增消息（runner 累积的 tool_calls/tool/assistant）
+        new_messages = messages[base_len:]
         self._save_to_history(
             session_key,
             new_messages,
-            user_msg=msg.content,  # 用户消息不在 delta 中，需单独保存
+            user_msg=msg.content,  # 用户消息不在新增部分中，需单独保存
         )
 
         # 输出回复

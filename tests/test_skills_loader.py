@@ -14,8 +14,7 @@ def _make_skill(directory: Path, name: str, *, description: str = "", body: str 
     skill_dir = directory / name
     skill_dir.mkdir(parents=True)
     lines = ["---"]
-    if name:
-        lines.append(f"name: {name}")
+    lines.append(f"name: {name}")
     if description:
         lines.append(f'description: "{description}"')
     lines.append(f"always: {str(always).lower()}")
@@ -97,7 +96,7 @@ def test_load_always_skills_content_single(tmp_path: Path) -> None:
 
     loader = SkillsLoader(tmp_path)
     content = loader.load_always_skills_content()
-    assert "# mem" in content
+    assert "### Skill: mem" in content
     assert "回顾对话历史" in content
 
 
@@ -107,10 +106,10 @@ def test_load_always_skills_content_multiple(tmp_path: Path) -> None:
 
     loader = SkillsLoader(tmp_path)
     content = loader.load_always_skills_content()
-    assert "# a" in content
+    assert "### Skill: a" in content
     assert "AAA body" in content
     assert "---" in content
-    assert "# b" in content
+    assert "### Skill: b" in content
     assert "BBB body" in content
 
 
@@ -127,15 +126,6 @@ def test_load_always_skills_content_skips_non_always(tmp_path: Path) -> None:
 # ── build_summary ──────────────────────────────────────────────────
 
 
-def test_build_summary_includes_always_tag(tmp_path: Path) -> None:
-    _make_skill(tmp_path, "s1", always=True, description="始终活跃")
-    _make_skill(tmp_path, "s2", always=False, description="可选")
-
-    loader = SkillsLoader(tmp_path)
-    summary = loader.build_summary()
-    assert "(始终激活)" in summary
-
-
 def test_build_summary_respects_exclude(tmp_path: Path) -> None:
     _make_skill(tmp_path, "a", always=True, description="A")
     _make_skill(tmp_path, "b", always=False, description="B")
@@ -143,14 +133,24 @@ def test_build_summary_respects_exclude(tmp_path: Path) -> None:
 
     loader = SkillsLoader(tmp_path)
     summary_with_exclude = loader.build_summary(exclude={"a", "b"})
-    assert "a" not in summary_with_exclude
-    assert "b" not in summary_with_exclude
-    assert "c" in summary_with_exclude
+    assert "**a**" not in summary_with_exclude
+    assert "**b**" not in summary_with_exclude
+    assert "**c**" in summary_with_exclude
 
 
 def test_build_summary_empty_when_no_skills(tmp_path: Path) -> None:
     loader = SkillsLoader(tmp_path)
     assert loader.build_summary() == ""
+
+
+def test_build_summary_includes_absolute_path(tmp_path: Path) -> None:
+    """摘要应包含绝对路径，AI 可直接传给 read_file 读取完整内容"""
+    _make_skill(tmp_path, "tavily", description="搜索", body="body")
+
+    loader = SkillsLoader(tmp_path)
+    summary = loader.build_summary()
+    assert tmp_path.as_posix() in summary
+    assert "tavily/SKILL.md" in summary
 
 
 # ── load_skill_content ─────────────────────────────────────────────
@@ -178,6 +178,8 @@ def test_no_frontmatter_at_all(tmp_path: Path) -> None:
     assert loader.skill_count == 1
     meta = loader._skills.get("raw", {})
     assert meta.get("always") is None
+    # 无 frontmatter 时描述兜底为技能名
+    assert meta.get("description") == "raw"
 
 
 def test_empty_body_after_frontmatter(tmp_path: Path) -> None:
@@ -212,3 +214,50 @@ def test_frontmatter_with_comments_skipped(tmp_path: Path) -> None:
     loader = SkillsLoader(tmp_path)
     assert loader.skill_count == 1
     assert loader._skills["commented"]["always"] is False
+
+
+def test_multiline_description_parsed(tmp_path: Path) -> None:
+    """YAML 多行块（|）描述应被完整解析（手写解析器的已知缺陷）"""
+    _raw_skill(tmp_path, "multi",
+               "---\nname: multi\ndescription: |\n  第一行描述\n  第二行描述\n"
+               "always: false\n---\nBody")
+
+    loader = SkillsLoader(tmp_path)
+    assert loader.skill_count == 1
+    assert "第一行描述" in loader.build_summary()
+    assert "第二行描述" in loader.build_summary()
+    assert "|" not in loader._skills["multi"]["description"]
+
+
+# ── 身份契约 ───────────────────────────────────────────────────────
+
+
+def test_skill_name_mismatch_dir_skipped(tmp_path: Path) -> None:
+    """frontmatter 的 name 与目录名不一致 → 跳过"""
+    _raw_skill(tmp_path, "dir-a",
+               "---\nname: other-name\ndescription: 不一致\n---\nBody")
+
+    loader = SkillsLoader(tmp_path)
+    assert loader.skill_count == 0
+
+
+def test_skill_name_invalid_format_skipped(tmp_path: Path) -> None:
+    """name 格式非法（连续 --）→ 跳过"""
+    _raw_skill(tmp_path, "bad--name",
+               "---\nname: bad--name\ndescription: 非法\n---\nBody")
+
+    loader = SkillsLoader(tmp_path)
+    assert loader.skill_count == 0
+
+
+def test_skill_without_description_falls_back_to_name(tmp_path: Path) -> None:
+    """有 frontmatter 但缺 description → 描述兜底为技能名"""
+    _raw_skill(tmp_path, "nodesc", "---\nname: nodesc\n---\nBody")
+
+    loader = SkillsLoader(tmp_path)
+    assert loader.skill_count == 1
+    assert "nodesc" in loader.build_summary()
+    assert loader._skills["nodesc"]["description"] == "nodesc"
+
+
+# ── load_skill_content ─────────────────────────────────────────────

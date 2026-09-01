@@ -26,6 +26,7 @@ dependencies = [
     "qq-botpy>=1.2.1",
     "openai>=1.0",
     "python-dotenv>=1.0",
+    "pyyaml>=6.0.3",
 ]
 
 [project.optional-dependencies]

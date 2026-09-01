@@ -16,7 +16,6 @@ from channels import ChannelManager, CliChannel, QQChannel
 from context import ContextBuilder
 from loop import AgentLoop
 from provider import MockProvider, OpenAIProvider, _load_dotenv
-from skills.load_skill_tool import LoadSkillTool
 from tools import (
     ListDirTool,
     ReadFileTool,
@@ -98,13 +97,11 @@ async def main():
     skills_loader = _create_skills_loader()
 
     # ── 第 3 步：注册工具 ──────────────────────────────
-    # load_skill 工具依赖技能加载器，必须在第 2 步之后注册
     tools = ToolRegistry()
     tools.register(ShellTool())
     tools.register(ReadFileTool())
     tools.register(WriteFileTool())
     tools.register(ListDirTool())
-    tools.register(LoadSkillTool(skills_loader))
 
     # ── 第 4 步：创建 Provider ─────────────────────────
     provider = _create_provider()

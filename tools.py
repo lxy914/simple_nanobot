@@ -61,6 +61,22 @@ class Tool(ABC):
 # ---------------------------------------------------------------------------
 
 
+def _decode_output(data: bytes) -> str:
+    """
+    解码子进程输出：优先 UTF-8（officecli 等 CLI 的标准输出），
+    回退 GBK（pwsh 在中文 Windows 上默认用系统代码页输出）。
+
+    不用 text=True 是因为它按 locale 编码硬解（中文系统是 GBK），
+    UTF-8 输出（如 officecli help）会触发 UnicodeDecodeError 崩溃。
+    """
+    for encoding in ("utf-8", "gbk"):
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return data.decode("utf-8", errors="replace")
+
+
 class ShellTool(Tool):
     """执行 shell 命令的工具"""
 
@@ -95,14 +111,12 @@ class ShellTool(Tool):
                 return subprocess.run(
                     ["pwsh", "-NoProfile", "-Command", command],
                     capture_output=True,
-                    text=True,
                     timeout=30,
                 )
             return subprocess.run(
                 command,
                 shell=True,
                 capture_output=True,
-                text=True,
                 timeout=30,
             )
 
@@ -115,9 +129,9 @@ class ShellTool(Tool):
         except Exception as e:
             return f"错误：{e}"
 
-        output = result.stdout
+        output = _decode_output(result.stdout)
         if result.stderr:
-            output += f"\n[stderr]\n{result.stderr}"
+            output += f"\n[stderr]\n{_decode_output(result.stderr)}"
         if result.returncode != 0:
             output += f"\n[exit code: {result.returncode}]"
         return output or "(命令执行成功，没有输出)"

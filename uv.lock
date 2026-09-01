@@ -963,6 +963,7 @@ source = { editable = "." }
 dependencies = [
     { name = "openai" },
     { name = "python-dotenv" },
+    { name = "pyyaml" },
     { name = "qq-botpy" },
 ]
 
@@ -978,6 +979,7 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21" },
     { name = "python-dotenv", specifier = ">=1.0" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "qq-botpy", specifier = ">=1.2.1" },
 ]
 provides-extras = ["dev"]
