@@ -34,7 +34,6 @@ def _detect_environment() -> str:
     return (
         f"操作系统: {os_name}\n"
         f"Shell: {shell}\n"
-        f"当前工作目录: {Path.cwd()}"
     )
 
 
@@ -52,8 +51,9 @@ class ContextBuilder:
 
         # 身份 + 环境
         parts.append(
-            f"你是一个 AI 助手。\n"
-            f"运行环境:\n{_detect_environment()}\n"
+            "# 身份\n"
+            f"你是一个由liuxy创建的轻量的nanobot AI 助手。\n"
+            f"# 运行环境:\n{_detect_environment()}\n"
         )
 
         # always 技能（完整正文）
@@ -67,11 +67,15 @@ class ContextBuilder:
             always = set(self.skills.get_always_skills())
             summary = self.skills.build_summary(exclude=always)
             if summary:
-                parts.append(f"需要使用技能时，必须先加载对应技能的 SKILL.md 文件:\n{summary}")
+                parts.append(
+                    "# 技能"
+                    "**使用任何技能前，必须先 read_file工具 加载对应 SKILL.md 文件**，当 skill（技能）文件里引用了相对路径时，要以skill 目录（即 `SKILL.md` 所在文件夹）作为基准路径做路径解析\n"
+                    f"{summary}"
+                )
 
         # 工具列表
-        if self.tool_names:
-            parts.append(f"工具: {', '.join(self.tool_names)}")
+        # if self.tool_names:
+        #     parts.append(f"工具: {', '.join(self.tool_names)}")
 
         return "\n\n".join(parts)
 

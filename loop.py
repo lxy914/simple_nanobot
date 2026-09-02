@@ -107,7 +107,7 @@ class AgentLoop:
             initial_messages=messages,
             tools=self.tools,
             provider=self.provider,
-            max_iterations=10,
+            max_iterations=50,
         )
 
         # ── 状态 4: RESPOND ──────────────────────────────

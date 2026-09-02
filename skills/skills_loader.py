@@ -151,9 +151,14 @@ class SkillsLoader:
                 parts.append(f"### Skill: {name}\n\n{content}")
         return "\n\n---\n\n".join(parts)
 
+    MAX_DESC_LEN = 150
+
     def build_summary(self, exclude: set[str] | None = None) -> str:
         """
         生成所有技能的摘要（名称 + 描述 + 绝对路径）。
+
+        描述超过 150 字符时会截断并追加 …（避免 AI 直接从摘要中
+        获取足够信息而跳过 read_file 加载 SKILL.md）。
 
         格式：
             - **memory** — 记忆系统  `C:/.../skills/memory/SKILL.md`
@@ -170,6 +175,12 @@ class SkillsLoader:
             if name in exclude:
                 continue
             desc = meta.get("description") or name
+            if len(desc) > self.MAX_DESC_LEN:
+                truncated = desc[:self.MAX_DESC_LEN]
+                space_pos = truncated.rfind(" ")
+                if space_pos > self.MAX_DESC_LEN * 0.4:
+                    truncated = truncated[:space_pos]
+                desc = truncated.rstrip() + "…"
             path = Path(meta["path"]).as_posix()
             lines.append(f"- **{name}** — {desc}  `{path}`")
 

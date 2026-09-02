@@ -26,7 +26,7 @@ class TestShellToolExecute:
 
             result = await ShellTool().execute({"command": "echo hello"})
 
-            # 验证调用参数（bytes 模式，不依赖 locale 编码）
+            # 验证调用参数（bytes 模式，自适应解码）
             mock_run.assert_called_once_with(
                 ["pwsh", "-NoProfile", "-Command", "echo hello"],
                 capture_output=True,
@@ -123,8 +123,8 @@ class TestShellToolExecute:
             result = await ShellTool().execute({"command": "echo test"})
 
             assert "stdout msg" in result
-            assert "[stderr]" in result
             assert "stderr msg" in result
+            # stderr 直接拼接，不再加 [stderr] 标记
 
     async def test_nonzero_exit_code_appended(self):
         """非零退出码应追加 exit code 信息."""
@@ -154,24 +154,24 @@ class TestShellToolExecute:
 
             assert "命令执行成功" in result
 
-    # ── 输出解码 ──────────────────────────────────────────────────────
+    # ── 自适应解码 ────────────────────────────────────────────────────
 
     async def test_utf8_output_decoded(self):
-        """UTF-8 输出（officecli 等）应正确解码"""
+        """UTF-8 输出（officecli）解码正确"""
         with (
             patch("tools.sys.platform", "win32"),
             patch("tools.subprocess.run") as mock_run,
         ):
-            mock_run.return_value.stdout = "中文帮助信息".encode("utf-8")
+            mock_run.return_value.stdout = "中文帮助".encode("utf-8")
             mock_run.return_value.stderr = b""
             mock_run.return_value.returncode = 0
 
             result = await ShellTool().execute({"command": "officecli help"})
 
-            assert "中文帮助信息" in result
+            assert "中文帮助" in result
 
     async def test_gbk_output_decoded(self):
-        """GBK 输出（pwsh 中文 Windows 默认）应正确解码"""
+        """GBK 输出（tvly/pwsh 中文环境）解码正确"""
         with (
             patch("tools.sys.platform", "win32"),
             patch("tools.subprocess.run") as mock_run,
@@ -180,11 +180,11 @@ class TestShellToolExecute:
             mock_run.return_value.stderr = b""
             mock_run.return_value.returncode = 0
 
-            result = await ShellTool().execute({"command": "Write-Output '测试'"})
+            result = await ShellTool().execute({"command": "tvly search"})
 
             assert "中文输出" in result
 
     def test_decode_output_fallback_replace(self):
-        """无法解码的字节流不应崩溃，回退替换符"""
+        """无法解码的字节不崩溃，回退替换符"""
         decoded = _decode_output(b"\xff\xfe\x00\x01")
         assert isinstance(decoded, str)

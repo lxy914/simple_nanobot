@@ -55,11 +55,12 @@ class TestDetectEnvironment:
         assert "sh" in info
 
     def test_reports_working_directory(self):
-        """输出包含当前工作目录"""
+        """输出包含当前的 Shell 信息"""
         with patch("context.platform.system", return_value="Windows"):
             info = _detect_environment()
 
-        assert "当前工作目录" in info
+        assert "操作系统" in info
+        assert "Shell" in info
 
 
 # ── system prompt 集成 ─────────────────────────────────────────────
@@ -74,4 +75,4 @@ class TestSystemPromptEnvironment:
 
         assert "运行环境" in prompt
         assert "操作系统" in prompt
-        assert "当前工作目录" in prompt
+        assert "Shell" in prompt
