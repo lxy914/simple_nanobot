@@ -62,3 +62,4 @@ botpy.log
 
 # ── 测试输出产物（test_system_prompt.py 生成）──
 tests/output/
+test_edit.txt

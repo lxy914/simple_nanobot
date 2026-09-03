@@ -67,12 +67,38 @@ class TestDetectEnvironment:
 
 
 class TestSystemPromptEnvironment:
-    """system prompt 第 1 段包含动态环境信息"""
+    """system prompt 采用 XML 分节（identity / environment / skills）"""
 
     def test_prompt_contains_environment(self):
-        """环境描述应出现在 system prompt 中"""
+        """环境信息应出现在 <environment> 分节中"""
         prompt = ContextBuilder().build_system_prompt()
 
-        assert "运行环境" in prompt
+        assert "<identity>" in prompt
+        assert "<environment>" in prompt
         assert "操作系统" in prompt
         assert "Shell" in prompt
+
+    def test_prompt_xml_sections_closed(self):
+        """XML 分节标签应成对闭合"""
+        prompt = ContextBuilder().build_system_prompt()
+
+        assert "</identity>" in prompt
+        assert "</environment>" in prompt
+
+
+class TestSystemPromptTools:
+    """system prompt 的 <tools> 分节列出可调用工具"""
+
+    def test_prompt_lists_available_tools(self):
+        """传入 tool_names 时应输出 <tools> 分节"""
+        prompt = ContextBuilder(tool_names=["shell", "read_file"]).build_system_prompt()
+
+        assert "<tools>" in prompt
+        assert "<tool>shell</tool>" in prompt
+        assert "<tool>read_file</tool>" in prompt
+
+    def test_prompt_omits_tools_when_none(self):
+        """未传 tool_names 时不输出 <tools> 分节"""
+        prompt = ContextBuilder().build_system_prompt()
+
+        assert "<tools>" not in prompt

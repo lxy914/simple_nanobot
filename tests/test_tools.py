@@ -6,7 +6,159 @@ from unittest.mock import patch
 
 import pytest
 
-from tools import ShellTool, _decode_output
+from tools import EditFileTool, ShellTool, _decode_output
+
+
+class TestEditFileTool:
+    """EditFileTool 的单元测试，使用临时文件验证实际读写"""
+
+    # ── search_replace 模式 ────────────────────────────────────────────
+
+    async def test_search_replace_basic(self, tmp_path):
+        """基本搜索替换：old_text 被 new_text 替换"""
+        f = tmp_path / "test.txt"
+        f.write_text("hello world", encoding="utf-8")
+
+        result = await EditFileTool().execute({
+            "path": str(f),
+            "mode": "search_replace",
+            "old_text": "world",
+            "new_text": "nanobot",
+        })
+
+        assert "编辑成功" in result
+        assert f.read_text(encoding="utf-8") == "hello nanobot"
+
+    async def test_search_replace_not_found(self, tmp_path):
+        """old_text 不存在时返回错误"""
+        f = tmp_path / "test.txt"
+        f.write_text("hello world", encoding="utf-8")
+
+        result = await EditFileTool().execute({
+            "path": str(f),
+            "mode": "search_replace",
+            "old_text": "xyz",
+            "new_text": "abc",
+        })
+
+        assert "未找到" in result
+
+    async def test_search_replace_multiple_matches(self, tmp_path):
+        """old_text 出现多次时返回错误"""
+        f = tmp_path / "test.txt"
+        f.write_text("foo bar foo", encoding="utf-8")
+
+        result = await EditFileTool().execute({
+            "path": str(f),
+            "mode": "search_replace",
+            "old_text": "foo",
+            "new_text": "baz",
+        })
+
+        assert "唯一" in result
+        assert "2 次" in result
+
+    async def test_search_replace_missing_new_text(self, tmp_path):
+        """search_replace 模式未提供 new_text 时返回错误"""
+        f = tmp_path / "test.txt"
+        f.write_text("hello", encoding="utf-8")
+
+        result = await EditFileTool().execute({
+            "path": str(f),
+            "mode": "search_replace",
+            "old_text": "hello",
+        })
+
+        assert "new_text" in result
+
+    # ── insert 模式 ────────────────────────────────────────────────────
+
+    async def test_insert_after(self, tmp_path):
+        """在锚点文本后插入内容"""
+        f = tmp_path / "test.txt"
+        f.write_text("line1\nline2\nline3", encoding="utf-8")
+
+        result = await EditFileTool().execute({
+            "path": str(f),
+            "mode": "insert",
+            "old_text": "line2",
+            "insert_content": "inserted",
+            "position": "after",
+        })
+
+        assert "编辑成功" in result
+        content = f.read_text(encoding="utf-8")
+        assert "line2\ninserted\nline3" in content
+
+    async def test_insert_before(self, tmp_path):
+        """在锚点文本前插入内容"""
+        f = tmp_path / "test.txt"
+        f.write_text("line1\nline2\nline3", encoding="utf-8")
+
+        result = await EditFileTool().execute({
+            "path": str(f),
+            "mode": "insert",
+            "old_text": "line2",
+            "insert_content": "inserted",
+            "position": "before",
+        })
+
+        assert "编辑成功" in result
+        content = f.read_text(encoding="utf-8")
+        assert "line1\ninserted\nline2" in content
+
+    async def test_insert_anchor_not_found(self, tmp_path):
+        """锚点不存在时返回错误"""
+        f = tmp_path / "test.txt"
+        f.write_text("hello world", encoding="utf-8")
+
+        result = await EditFileTool().execute({
+            "path": str(f),
+            "mode": "insert",
+            "old_text": "xyz",
+            "insert_content": "new",
+        })
+
+        assert "未找到" in result
+
+    async def test_insert_missing_content(self, tmp_path):
+        """insert 模式未提供 insert_content 时返回错误"""
+        f = tmp_path / "test.txt"
+        f.write_text("hello", encoding="utf-8")
+
+        result = await EditFileTool().execute({
+            "path": str(f),
+            "mode": "insert",
+            "old_text": "hello",
+        })
+
+        assert "insert_content" in result
+
+    # ── 通用异常路径 ──────────────────────────────────────────────────
+
+    async def test_file_not_found(self):
+        """文件不存在时返回错误"""
+        result = await EditFileTool().execute({
+            "path": "C:\\nonexistent\\file.txt",
+            "mode": "search_replace",
+            "old_text": "x",
+            "new_text": "y",
+        })
+
+        assert "不存在" in result
+
+    async def test_unknown_mode(self, tmp_path):
+        """未知操作模式返回错误"""
+        f = tmp_path / "test.txt"
+        f.write_text("hello", encoding="utf-8")
+
+        result = await EditFileTool().execute({
+            "path": str(f),
+            "mode": "unknown_mode",
+            "old_text": "hello",
+        })
+
+        assert "未知" in result
 
 
 class TestShellToolExecute:

@@ -91,14 +91,14 @@ simple_nanobot/            # 项目根目录
 ├── runner.py       # AgentRunner 多轮对话
 ├── loop.py         # AgentLoop 状态机主循环
 ├── main.py         # 入口 + Provider 工厂
+├── skills_loader.py  # SkillsLoader（yaml 解析 + 摘要 + 渐进式加载）
 ├── channels/       # 通道系统
 │   ├── base.py     #   Channel 抽象基类
 │   ├── cli.py      #   CLI 通道
 │   ├── qq.py       #   QQ 通道
 │   ├── manager.py  #   ChannelManager
 │   └── __init__.py
-└── skills/         # 技能系统
-    ├── skills_loader.py  # SkillsLoader（yaml 解析 + $引用 + 摘要）
+└── skills/         # 技能系统（只存放 SKILL.md 技能定义）
     ├── officecli/SKILL.md
     └── tavily-search/SKILL.md
 ```

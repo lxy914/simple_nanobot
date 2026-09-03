@@ -11,8 +11,9 @@
 from pathlib import Path
 
 from context import ContextBuilder
-from skills.skills_loader import SkillsLoader
-from tools import ListDirTool, ReadFileTool, ShellTool, ToolRegistry, WriteFileTool
+from skills_loader import SkillsLoader
+from tools import (EditFileTool, ListDirTool, ReadFileTool,
+                   ShellTool, ToolRegistry, WriteFileTool)
 
 # 项目根目录（tests/ 的上一级）
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -26,6 +27,7 @@ def _build_real_context_builder() -> ContextBuilder:
     tools.register(ShellTool())
     tools.register(ReadFileTool())
     tools.register(WriteFileTool())
+    tools.register(EditFileTool())
     tools.register(ListDirTool())
 
     skills_loader = SkillsLoader(SKILLS_DIR)

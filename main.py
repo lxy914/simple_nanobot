@@ -17,6 +17,7 @@ from context import ContextBuilder
 from loop import AgentLoop
 from provider import MockProvider, OpenAIProvider, _load_dotenv
 from tools import (
+    EditFileTool,
     ListDirTool,
     ReadFileTool,
     ShellTool,
@@ -28,15 +29,14 @@ from tools import (
 def _create_skills_loader():
     """创建技能加载器"""
     from pathlib import Path
-    from skills.skills_loader import SkillsLoader
+    from skills_loader import SkillsLoader
 
     # 技能目录：项目内的 skills/
     skills_dir = Path(__file__).resolve().parent / "skills"
     loader = SkillsLoader(skills_dir)
-    if loader.skill_count > 0:
-        always = loader.get_always_skills()
-        print(f"[技能] 已加载 {loader.skill_count} 个技能"
-              f"{' (始终激活: ' + ', '.join(always) + ')' if always else ''}")
+    count = len(loader.list_skills())
+    if count > 0:
+        print(f"[技能] 已加载 {count} 个技能")
     return loader
 
 
@@ -101,6 +101,7 @@ async def main():
     tools.register(ShellTool())
     tools.register(ReadFileTool())
     tools.register(WriteFileTool())
+    tools.register(EditFileTool())
     tools.register(ListDirTool())
 
     # ── 第 4 步：创建 Provider ─────────────────────────
@@ -131,7 +132,7 @@ async def main():
     print("\n" + "="*50)
     print("简单 Nanobot 启动中...")
     print(f"已加载工具: {tools.tool_names()}")
-    print(f"已加载技能: {skills_loader.skill_count} 个")
+    print(f"已加载技能: {len(skills_loader.list_skills())} 个")
     print("="*50 + "\n")
 
     await asyncio.gather(

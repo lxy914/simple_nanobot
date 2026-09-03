@@ -10,9 +10,8 @@
 import os
 import platform
 import shutil
-from pathlib import Path
 
-from skills.skills_loader import SkillsLoader
+from skills_loader import SkillsLoader
 
 
 def _detect_environment() -> str:
@@ -46,36 +45,46 @@ class ContextBuilder:
         self.tool_names = tool_names or []
 
     def build_system_prompt(self) -> str:
-        """生成 system 提示词"""
+        """生成 system 提示词（统一为 XML 分节）"""
         parts = []
 
-        # 身份 + 环境
+        # 身份
         parts.append(
-            "# 身份\n"
-            f"你是一个由liuxy创建的轻量的nanobot AI 助手。\n"
-            f"# 运行环境:\n{_detect_environment()}\n"
+            "<identity>\n"
+            "你是一个由liuxy创建的轻量的nanobot AI 助手。\n"
+            "</identity>"
         )
 
-        # always 技能（完整正文）
-        if self.skills:
-            always_content = self.skills.load_always_skills_content()
-            if always_content:
-                parts.append(always_content)
+        # 运行环境
+        parts.append(
+            f"<environment>\n{_detect_environment()}</environment>"
+        )
 
-        # 可用技能摘要
+        # 可用工具（仅这些名字可被 tool call 调用，技能不在此列）
+        if self.tool_names:
+            tools_xml = "\n".join(
+                f"  <tool>{name}</tool>" for name in self.tool_names
+            )
+            parts.append(f"<tools>\n{tools_xml}\n</tools>")
+
+        # 技能：使用准则 + XML 摘要（渐进式加载：正文由 AI 用 read_file 按需读取）
         if self.skills:
-            always = set(self.skills.get_always_skills())
-            summary = self.skills.build_summary(exclude=always)
+            summary = self.skills.build_skills_summary()
             if summary:
                 parts.append(
-                    "# 技能"
-                    "**使用任何技能前，必须先 read_file工具 加载对应 SKILL.md 文件**，当 skill（技能）文件里引用了相对路径时，要以skill 目录（即 `SKILL.md` 所在文件夹）作为基准路径做路径解析\n"
-                    f"{summary}"
+                    "<skill-guidelines>\n"
+                    "以下技能扩展了你的能力，使用技能的标准流程：\n"
+                    "1. 在 <skills> 中选择匹配的技能；\n"
+                    "2. 用 read_file 工具读取 <location> 指向的 SKILL.md 文件正文；\n"
+                    "3. 严格按正文中的说明执行（命令、参数与步骤均以正文为准）。\n"
+                    "禁止事项：\n"
+                    "- <skills> 中的条目是技能，不是可调用的工具，禁止直接调用技能名；\n"
+                    "- 技能名不代表系统里有同名命令，禁止在读取 SKILL.md 正文前猜测或执行与技能相关的任何命令。\n"
+                    "当 SKILL.md 文件里引用了相对路径时，要以 skill 目录"
+                    "（即 SKILL.md 所在文件夹）作为基准路径做路径解析。\n"
+                    "</skill-guidelines>"
                 )
-
-        # 工具列表
-        # if self.tool_names:
-        #     parts.append(f"工具: {', '.join(self.tool_names)}")
+                parts.append(summary)
 
         return "\n\n".join(parts)
 

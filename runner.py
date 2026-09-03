@@ -59,13 +59,8 @@ class AgentRunner:
         messages = initial_messages
         tools_used = set()
 
-        print(f"\n{'='*50}")
-        print(f"开始 AI 对话，最多 {max_iterations} 轮")
-        print(f"{'='*50}")
 
         for iteration in range(max_iterations):
-            print(f"\n--- 第 {iteration + 1} 轮 ---")
-            print(f"当前消息数: {len(messages)}")
 
             # 第 1 步：调用 AI
             response: LLMResponse = await provider.generate(
@@ -82,13 +77,12 @@ class AgentRunner:
 
             # 情况 B：AI 要调工具
             if response.tool_calls:
-                print(f"AI 要求调用工具: {len(response.tool_calls)} 个")
 
                 # 2a. 把 AI 的 tool_call 追加到 messages
                 for tc in response.tool_calls:
                     # 执行工具时打印参数（长值截断，避免刷屏）
                     args_str = ", ".join(
-                        f"{k}={str(v)[:50]}{'...' if len(str(v)) > 50 else ''}"
+                        f"{k}={str(v)}"
                         for k, v in tc.arguments.items()
                     )
                     print(f"  调用工具 {tc.name}({args_str})")
@@ -127,14 +121,9 @@ class AgentRunner:
 
             # 情况 B：AI 给了文本回复
             final_text = response.content or "(空回复)"
-            print(f"AI 返回文本: {final_text[:50]}...")
 
             # 把 AI 的文本回复追加到 messages
             messages.append({"role": "assistant", "content": final_text})
-
-            print(f"\n{'='*50}")
-            print(f"对话结束，共 {iteration + 1} 轮，使用工具: {tools_used}")
-            print(f"{'='*50}")
 
             return final_text
 

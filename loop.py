@@ -20,12 +20,14 @@ AgentLoop —— 智能体的大脑。
 """
 
 import asyncio
+from typing import Any, Coroutine
 
 from bus import MessageBus
 from context import ContextBuilder
 from provider import LLMProvider
 from runner import AgentRunner
 from tools import ToolRegistry
+from events import OutboundMessage
 
 
 class AgentLoop:
@@ -65,11 +67,12 @@ class AgentLoop:
             except asyncio.TimeoutError:
                 continue
 
-            await self._process_message(msg)
+            out = await self._process_message(msg)
+            await self.bus.publish_outbound(out)
 
         print("已退出。")
 
-    async def _process_message(self, msg) -> None:
+    async def _process_message(self, msg) -> OutboundMessage:
         """
         状态机：RESTORE → BUILD → RUN → RESPOND
 
@@ -81,27 +84,17 @@ class AgentLoop:
         """
 
         session_key = msg.session_key
-        print(f"\n[状态机] 开始处理 session={session_key}")
-
         # ── 状态 1: RESTORE ──────────────────────────────
         # 从内存中取出历史对话（如果第一次，就是空列表）
-        print(f"[状态机] RESTORE: 恢复历史")
         history = self._restore_history(session_key)
-        print(f"  历史消息数: {len(history)}")
 
         # ── 状态 2: BUILD ────────────────────────────────
         # 拼装完整消息列表
-        print(f"[状态机] BUILD: 构建上下文")
         messages = self.context_builder.build_messages(
             history=history,
             current_message=msg.content,
         )
-        print(f"  消息列表: system({len(self.context_builder.build_system_prompt())}字) + "
-              f"{len(history)}条历史 + 当前消息")
-
-        # ── 状态 3: RUN ──────────────────────────────────
         # 调用 AI 进行多轮对话（runner 会在 messages 上原地累积新消息）
-        print(f"[状态机] RUN: 启动 AI 对话")
         base_len = len(messages)
         reply = await self.runner.run(
             initial_messages=messages,
@@ -110,28 +103,13 @@ class AgentLoop:
             max_iterations=50,
         )
 
-        # ── 状态 4: RESPOND ──────────────────────────────
-        # 把 AI 的回复放进出站队列
-        print(f"[状态机] RESPOND: 输出回复")
 
         # 保存本轮新增消息（runner 累积的 tool_calls/tool/assistant）
         new_messages = messages[base_len:]
-        self._save_to_history(
-            session_key,
-            new_messages,
-            user_msg=msg.content,  # 用户消息不在新增部分中，需单独保存
-        )
+        self._save_to_history(session_key,new_messages,user_msg=msg.content)
 
         # 输出回复
-        from events import OutboundMessage
-        out = OutboundMessage(
-            channel=msg.channel,
-            chat_id=msg.chat_id,
-            content=reply,
-        )
-        await self.bus.publish_outbound(out)
-
-        print(f"[状态机] 本轮处理完成，等待下一条消息...")
+        return OutboundMessage(channel=msg.channel,chat_id=msg.chat_id,content=reply)
 
     def _restore_history(self, session_key: str) -> list[dict]:
         """从内存中恢复历史"""

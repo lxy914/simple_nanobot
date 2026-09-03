@@ -33,7 +33,7 @@ dependencies = [
 dev = ["pytest>=7.0", "pytest-asyncio>=0.21"]
 
 [tool.setuptools]
-py-modules = ["bus", "context", "events", "loop", "main", "provider", "runner", "tools"]
+py-modules = ["bus", "context", "events", "loop", "main", "provider", "runner", "skills_loader", "tools"]
 
 [tool.setuptools.packages.find]
 include = ["channels", "channels.*", "skills", "skills.*"]

@@ -250,6 +250,134 @@ class WriteFileTool(Tool):
 
 
 # ---------------------------------------------------------------------------
+# EditFileTool —— 精确编辑文件
+#
+# 支持两种模式：
+# - search_replace: 搜索并替换文件中唯一匹配的文本
+# - insert: 在唯一匹配的锚点文本前后插入新内容
+# ---------------------------------------------------------------------------
+
+
+class EditFileTool(Tool):
+    """精确编辑文件内容的工具"""
+
+    name = "edit_file"
+    description = "编辑文件：搜索替换指定文本，或在指定位置前后插入新内容"
+
+    def get_definition(self) -> dict:
+        return {
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "description": self.description,
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "文件的绝对路径",
+                        },
+                        "mode": {
+                            "type": "string",
+                            "enum": ["search_replace", "insert"],
+                            "description": "操作模式：search_replace（搜索替换）或 insert（插入）",
+                        },
+                        "old_text": {
+                            "type": "string",
+                            "description": "搜索替换时要被替换的文本，或插入模式中的定位锚点文本。"
+                                           "必须在文件中唯一匹配。",
+                        },
+                        "new_text": {
+                            "type": "string",
+                            "description": "替换后的新文本（search_replace 模式必填）",
+                        },
+                        "insert_content": {
+                            "type": "string",
+                            "description": "要插入的内容（insert 模式必填）",
+                        },
+                        "position": {
+                            "type": "string",
+                            "enum": ["after", "before"],
+                            "description": "插入位置（insert 模式）：在锚点之后或之前",
+                        },
+                    },
+                    "required": ["path", "old_text"],
+                },
+            },
+        }
+
+    async def execute(self, args: dict) -> str:
+        path = args.get("path", "")
+        mode = args.get("mode", "search_replace")
+        old_text = args.get("old_text", "")
+        new_text = args.get("new_text", "")
+        insert_content = args.get("insert_content", "")
+        position = args.get("position", "after")
+
+        # ── 校验路径 ──────────────────────────────────
+        try:
+            p = Path(path)
+            if not p.exists():
+                return f"错误：文件不存在: {path}"
+            if not p.is_file():
+                return f"错误：不是文件: {path}"
+            content = p.read_text(encoding="utf-8")
+        except Exception as e:
+            return f"错误：{e}"
+
+        # ── 计数 old_text 出现次数 ──────────────────
+        count = content.count(old_text)
+
+        if count == 0:
+            return (
+                f"错误：在文件中未找到匹配文本。请检查 old_text 是否准确。\n"
+                f"文件: {path}\n"
+                f"文件大小: {len(content)} 字符"
+            )
+
+        if count > 1:
+            return (
+                f"错误：old_text 在文件中出现 {count} 次，必须唯一匹配。\n"
+                f"请提供更多上下文以确保文本唯一。"
+            )
+
+        # ── 执行操作 ──────────────────────────────────
+        try:
+            if mode == "search_replace":
+                if not new_text:
+                    return "错误：search_replace 模式需要提供 new_text"
+                content = content.replace(old_text, new_text, 1)
+
+            elif mode == "insert":
+                if not insert_content:
+                    return "错误：insert 模式需要提供 insert_content"
+                pos = content.index(old_text)  # 唯一匹配，不会抛 ValueError
+                if position == "after":
+                    content = (
+                        content[:pos + len(old_text)]
+                        + "\n" + insert_content
+                        + content[pos + len(old_text):]
+                    )
+                else:  # before
+                    content = (
+                        content[:pos]
+                        + insert_content + "\n"
+                        + content[pos:]
+                    )
+
+            else:
+                return f"错误：未知的操作模式 '{mode}'"
+
+            # ── 写回文件 ──────────────────────────────
+            p.write_text(content, encoding="utf-8")
+            size = p.stat().st_size
+            return f"文件编辑成功: {path} ({size} 字节)"
+
+        except Exception as e:
+            return f"错误：{e}"
+
+
+# ---------------------------------------------------------------------------
 # ListDirTool —— 列出目录内容
 # ---------------------------------------------------------------------------
 
