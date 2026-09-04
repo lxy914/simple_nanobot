@@ -25,7 +25,7 @@ class MessageBus:
     - 住户从发件箱取回信（consume_outbound）
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         # asyncio.Queue 是协程安全的队列
         # 队列为空时，get() 会阻塞等待（不消耗 CPU）
         self.inbound: asyncio.Queue[InboundMessage] = asyncio.Queue()

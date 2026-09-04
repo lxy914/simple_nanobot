@@ -29,8 +29,13 @@ from __future__ import annotations
 
 import asyncio
 import traceback
+from typing import TYPE_CHECKING
 
 from channels.base import Channel
+
+if TYPE_CHECKING:
+    from bus import MessageBus
+    from events import OutboundMessage
 
 # botpy 是可选依赖，没有安装也能导入模块
 try:
@@ -47,7 +52,7 @@ class QQChannel(Channel):
     name = "qq"
     display_name = "QQ"
 
-    def __init__(self, bus, config=None):
+    def __init__(self, bus: "MessageBus", config: dict | None = None) -> None:
         super().__init__(bus, config)
         self._client = None
         self._running = False
@@ -99,7 +104,7 @@ class QQChannel(Channel):
 
     # ── send ─────────────────────────────────────────────
 
-    async def send(self, msg) -> None:
+    async def send(self, msg: "OutboundMessage") -> None:
         """发送回复到 QQ"""
 
         if not self._client or not QQ_AVAILABLE:

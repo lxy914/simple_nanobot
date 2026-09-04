@@ -46,7 +46,7 @@ class ContextBuilder:
 
     def build_system_prompt(self) -> str:
         """生成 system 提示词（统一为 XML 分节）"""
-        parts = []
+        parts: list[str] = []
 
         # 身份
         parts.append(

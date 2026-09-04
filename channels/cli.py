@@ -10,8 +10,15 @@ CLI 通道 —— 通过标准输入/输出进行对话。
 """
 
 import asyncio
+import sys
+import threading
+from typing import TYPE_CHECKING
 
 from channels.base import Channel
+
+if TYPE_CHECKING:
+    from bus import MessageBus
+    from events import OutboundMessage
 
 
 class CliChannel(Channel):
@@ -20,7 +27,7 @@ class CliChannel(Channel):
     name = "cli"
     display_name = "命令行"
 
-    def __init__(self, bus, config=None):
+    def __init__(self, bus: "MessageBus", config: dict | None = None) -> None:
         super().__init__(bus, config)
 
     def _get_shutdown_event(self) -> asyncio.Event | None:
@@ -36,29 +43,43 @@ class CliChannel(Channel):
         """
         启动 CLI 通道。
 
-        在线程池中执行阻塞的 stdin.readline()，读到消息后投递到总线。
+        stdin 由 daemon 线程读取，再线程安全地投递到 asyncio 队列。
+
+        为什么不用 run_in_executor(input)：默认线程池的线程是非 daemon 的，
+        按 Ctrl+C 时 asyncio.run 退出前会等待线程池线程结束，而阻塞的
+        input() 永不返回，程序会挂死。daemon 线程不阻止进程退出，
+        Ctrl+C 抛 KeyboardInterrupt 后程序可直接结束。
         读到 /exit 或 EOF 时退出，并触发共享 shutdown 信号通知 ChannelManager。
         """
-        loop = asyncio.get_event_loop()
-
         print(f"[通道] {self.display_name} 已启动")
         print("输入消息，输入 /exit 退出\n")
+
+        loop = asyncio.get_running_loop()
+        lines: asyncio.Queue[str | None] = asyncio.Queue()
+
+        def _reader() -> None:
+            """daemon 线程：阻塞读 stdin，EOF 时投递 None 结束"""
+            while True:
+                line = sys.stdin.readline()
+                loop.call_soon_threadsafe(
+                    lines.put_nowait,
+                    line.strip() if line else None,
+                )
+                if not line:  # EOF（Ctrl+Z + Enter / 管道关闭）
+                    return
+
+        threading.Thread(target=_reader, daemon=True, name="cli-stdin").start()
+
         print("> ", end="", flush=True)
-
         while True:
-            line = await loop.run_in_executor(None, input)
-
-            if not line:  # EOF
+            line = await lines.get()
+            if line is None:  # EOF
                 break
-
-            line = line.strip()
             if not line:
                 print("> ", end="", flush=True)
                 continue
-
-            if line == "/exit":
+            if line == "/exit" or line == "exit":
                 break
-
             await self._handle_message(
                 sender_id="user",
                 chat_id="default",
@@ -91,7 +112,7 @@ class CliChannel(Channel):
         if shutdown := self._get_shutdown_event():
             shutdown.set()
 
-    async def send(self, msg) -> None:
+    async def send(self, msg: "OutboundMessage") -> None:
         """发送回复到标准输出"""
         print(f"\n🤖  {msg.content}")
         print("\n> ", end="", flush=True)

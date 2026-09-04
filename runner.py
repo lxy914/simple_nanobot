@@ -29,7 +29,7 @@ class AgentRunner:
     职责：管理 messages 的累积、调用 AI、执行工具、判断何时结束。
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
     async def run(
@@ -57,7 +57,7 @@ class AgentRunner:
 
         # 直接在传入列表上累积（不拷贝），让调用方直接拿到完整消息
         messages = initial_messages
-        tools_used = set()
+        tools_used: set[str] = set()
 
 
         for iteration in range(max_iterations):

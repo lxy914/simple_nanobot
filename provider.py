@@ -84,7 +84,7 @@ class MockProvider(LLMProvider):
     让你能跑通整个工具调用链路。
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._call_counter = 0  # 每个实例独立的 tool_call ID 计数器
 
     async def generate(
@@ -171,7 +171,7 @@ class MockProvider(LLMProvider):
 # ---------------------------------------------------------------------------
 
 
-def _load_dotenv():
+def _load_dotenv() -> None:
     """加载项目根目录的 .env 文件"""
     import os
     from pathlib import Path
@@ -195,11 +195,8 @@ class OpenAIProvider(LLMProvider):
         model: str | None = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
-    ):
+    ) -> None:
         import os
-
-        # 加载 .env 文件
-        _load_dotenv()
 
         # 参数优先级：构造函数 > 环境变量 > 默认值
         self.api_key = api_key or os.getenv("LLM_API_KEY", "")

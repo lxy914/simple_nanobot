@@ -9,13 +9,18 @@
 5. 并发启动 AgentLoop 和 ChannelManager
 """
 
+from __future__ import annotations
+
 import asyncio
+from pathlib import Path
 
 from bus import MessageBus
 from channels import ChannelManager, CliChannel, QQChannel
 from context import ContextBuilder
 from loop import AgentLoop
-from provider import MockProvider, OpenAIProvider, _load_dotenv
+from provider import LLMProvider, MockProvider, OpenAIProvider, _load_dotenv
+from skills_loader import SkillsLoader
+from storage import SessionStorage
 from tools import (
     EditFileTool,
     ListDirTool,
@@ -26,10 +31,9 @@ from tools import (
 )
 
 
-def _create_skills_loader():
+def _create_skills_loader() -> SkillsLoader:
     """创建技能加载器"""
     from pathlib import Path
-    from skills_loader import SkillsLoader
 
     # 技能目录：项目内的 skills/
     skills_dir = Path(__file__).resolve().parent / "skills"
@@ -40,7 +44,7 @@ def _create_skills_loader():
     return loader
 
 
-def _create_provider():
+def _create_provider() -> LLMProvider:
     """
     智能创建 Provider。
 
@@ -65,7 +69,7 @@ def _create_provider():
     return MockProvider()
 
 
-def _register_qq_if_configured(manager, bus):
+def _register_qq_if_configured(manager: ChannelManager, bus: MessageBus) -> None:
     """如果 .env 中配置了 QQ 凭据，自动注册 QQ 通道"""
     import os
 
@@ -82,7 +86,7 @@ def _register_qq_if_configured(manager, bus):
         print("[通道] 未检测到 QQ_APP_ID / QQ_SECRET，跳过 QQ 通道")
 
 
-async def main():
+async def main() -> None:
     """主启动函数"""
 
     # ── 第 0 步：先加载 .env ───────────────────────────
@@ -92,6 +96,9 @@ async def main():
 
     # ── 第 1 步：创建基础设施 ─────────────────────────
     bus = MessageBus()
+
+    # 会话持久化：每会话一个 JSON 文件，原子写入
+    storage = SessionStorage(Path(__file__).resolve().parent / "data" / "sessions")
 
     # ── 第 2 步：创建技能加载器 ────────────────────────
     skills_loader = _create_skills_loader()
@@ -103,6 +110,9 @@ async def main():
     tools.register(WriteFileTool())
     tools.register(EditFileTool())
     tools.register(ListDirTool())
+
+    # 登记技能名 → SKILL.md 路径（幻觉兑底：技能名被当工具调用时给出引导）
+    tools.register_skills(skills_loader.list_skills())
 
     # ── 第 4 步：创建 Provider ─────────────────────────
     provider = _create_provider()
@@ -117,6 +127,7 @@ async def main():
         provider=provider,
         tools=tools,
         context_builder=context_builder,
+        storage=storage,
     )
 
     # ── 第 6 步：注册通道 ─────────────────────────────
@@ -130,7 +141,7 @@ async def main():
 
     # ── 第 7 步：并发启动 AgentLoop 和 ChannelManager ─
     print("\n" + "="*50)
-    print("简单 Nanobot 启动中...")
+    print("Simple Nanobot 启动中...")
     print(f"已加载工具: {tools.tool_names()}")
     print(f"已加载技能: {len(skills_loader.list_skills())} 个")
     print("="*50 + "\n")

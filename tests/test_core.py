@@ -12,6 +12,7 @@ from events import InboundMessage
 from loop import AgentLoop
 from provider import LLMProvider, LLMResponse, MockProvider, ToolCallRequest
 from runner import AgentRunner
+from storage import SessionStorage
 from tools import ListDirTool, ReadFileTool, ShellTool, ToolRegistry, WriteFileTool
 
 
@@ -305,3 +306,137 @@ class TestToolRegistry:
         for d in defs:
             assert d["type"] == "function"
             assert "name" in d["function"]
+
+    # ── 技能幻觉兑底引导 ────────────────────────────────────────────
+
+    def test_register_skills_does_not_enter_definitions(self):
+        """技能登记后不参与工具定义（技能不是工具）"""
+        reg = ToolRegistry()
+        reg.register(ShellTool())
+        reg.register_skills([
+            {"name": "tavily-search", "path": "C:/skills/tavily-search/SKILL.md"},
+        ])
+
+        defs = reg.get_definitions()
+        assert all(d["function"]["name"] != "tavily-search" for d in defs)
+
+    async def test_execute_skill_name_returns_guidance(self):
+        """技能名被当工具调用时，返回 read_file 引导而非"找不到工具"""
+        reg = ToolRegistry()
+        reg.register_skills([
+            {"name": "tavily-search", "path": "C:/skills/tavily-search/SKILL.md"},
+        ])
+
+        result = await reg.execute("tavily-search", {"query": "新闻"})
+
+        assert "是技能而非工具" in result
+        assert "C:/skills/tavily-search/SKILL.md" in result
+        assert "read_file" in result
+
+    async def test_execute_unknown_name_keeps_plain_error(self):
+        """未登记的名字仍返回普通"找不到工具"错误"""
+        reg = ToolRegistry()
+        reg.register_skills([
+            {"name": "tavily-search", "path": "C:/skills/tavily-search/SKILL.md"},
+        ])
+
+        result = await reg.execute("no_such_tool", {})
+
+        assert "找不到工具" in result
+        assert "read_file" not in result
+
+
+# ── AgentLoop + SessionStorage 持久化集成测试 ────────────────────────
+
+
+class TestAgentLoopPersistence:
+    """RESTORE / SAVE 状态与 SessionStorage 的集成：重启后历史可恢复"""
+
+    async def test_history_persisted_and_restored(self, tmp_path: Path):
+        """处理消息后落盘，新 AgentLoop（模拟重启）从磁盘恢复历史"""
+
+        class TextProvider(LLMProvider):
+            async def generate(self, messages, tools=None):
+                return LLMResponse(content="回复内容", finish_reason="stop")
+
+        storage = SessionStorage(tmp_path)
+        loop1 = AgentLoop(
+            bus=MessageBus(),
+            provider=TextProvider(),
+            tools=ToolRegistry(),
+            context_builder=ContextBuilder(),
+            storage=storage,
+        )
+
+        msg = InboundMessage(
+            channel="cli", sender_id="user", chat_id="default", content="你好"
+        )
+        await loop1._process_message(msg)
+
+        # 会话文件已落盘
+        assert (tmp_path / "cli_default.json").exists()
+
+        # 新 AgentLoop（同一 storage，模拟重启）恢复历史
+        loop2 = AgentLoop(
+            bus=MessageBus(),
+            provider=TextProvider(),
+            tools=ToolRegistry(),
+            context_builder=ContextBuilder(),
+            storage=storage,
+        )
+        history = loop2._restore_history("cli:default")
+
+        assert history[0] == {"role": "user", "content": "你好"}
+        assert history[-1] == {"role": "assistant", "content": "回复内容"}
+
+    async def test_second_session_includes_first_round(self, tmp_path: Path):
+        """第二轮对话时 RESTORE 出第一轮历史，上下文包含之前的消息"""
+
+        class TextProvider(LLMProvider):
+            async def generate(self, messages, tools=None):
+                self.last_messages = messages
+                return LLMResponse(content="好的", finish_reason="stop")
+
+        provider = TextProvider()
+        loop_agent = AgentLoop(
+            bus=MessageBus(),
+            provider=provider,
+            tools=ToolRegistry(),
+            context_builder=ContextBuilder(),
+            storage=SessionStorage(tmp_path),
+        )
+
+        def make_msg(content: str) -> InboundMessage:
+            return InboundMessage(
+                channel="cli", sender_id="user", chat_id="default", content=content
+            )
+
+        await loop_agent._process_message(make_msg("第一轮"))
+        await loop_agent._process_message(make_msg("第二轮"))
+
+        # 第二轮发给 AI 的上下文里应包含第一轮的用户消息与回复
+        contents = [m.get("content", "") for m in provider.last_messages]
+        assert any("第一轮" in c for c in contents)
+        assert any("好的" in c for c in contents)
+
+    async def test_no_storage_keeps_memory_only(self):
+        """storage=None 时保持纯内存行为（不落盘、不报错）"""
+
+        class TextProvider(LLMProvider):
+            async def generate(self, messages, tools=None):
+                return LLMResponse(content="ok", finish_reason="stop")
+
+        loop_agent = AgentLoop(
+            bus=MessageBus(),
+            provider=TextProvider(),
+            tools=ToolRegistry(),
+            context_builder=ContextBuilder(),
+            storage=None,
+        )
+        msg = InboundMessage(
+            channel="cli", sender_id="user", chat_id="default", content="你好"
+        )
+        out = await loop_agent._process_message(msg)
+
+        assert out.content == "ok"
+        assert loop_agent._restore_history("cli:default")  # 内存中仍有历史

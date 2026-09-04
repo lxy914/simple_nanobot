@@ -63,3 +63,6 @@ botpy.log
 # ── 测试输出产物（test_system_prompt.py 生成）──
 tests/output/
 test_edit.txt
+
+# ── 会话持久化数据（AgentLoop 运行时生成）──────
+data/

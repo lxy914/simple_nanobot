@@ -442,13 +442,29 @@ class ListDirTool(Tool):
 class ToolRegistry:
     """工具箱 —— 管理所有可用工具"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._tools: dict[str, Tool] = {}
+        # 技能名 → SKILL.md 绝对路径（幻觉兑底引导用）
+        self._skill_locations: dict[str, str] = {}
 
     def register(self, tool: Tool) -> None:
         """注册一个新工具"""
         self._tools[tool.name] = tool
         print(f"[工具] 已注册: {tool.name} — {tool.description}")
+
+    def register_skills(self, skills: list[dict]) -> None:
+        """
+        登记技能名与 SKILL.md 路径（技能不是工具，不参与 get_definitions）。
+
+        模型偶尔会把技能名当工具调用（如 tavily-search 与 Tavily MCP
+        工具重名），execute 命中时返回引导信息，把它拉回正确路径：
+        先 read_file 读取技能正文，而不是报"找不到工具"后让模型瞎猜命令。
+        """
+        for skill in skills:
+            name = skill.get("name")
+            path = skill.get("path")
+            if name and path:
+                self._skill_locations[name] = path
 
     def get(self, name: str) -> Tool | None:
         """根据名称获取工具"""
@@ -471,5 +487,12 @@ class ToolRegistry:
         """根据名称执行工具"""
         tool = self._tools.get(name)
         if tool is None:
+            location = self._skill_locations.get(name)
+            if location:
+                return (
+                    f"错误：'{name}' 是技能而非工具，不能直接调用。\n"
+                    f"请先调用 read_file(path=\"{location}\") 读取该技能的 "
+                    "SKILL.md 正文，再严格按正文中的说明执行。"
+                )
             return f"错误：找不到工具 '{name}'"
         return await tool.execute(args)

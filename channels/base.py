@@ -25,7 +25,7 @@ Channel 基类 —— 所有通道的抽象基类。
 from abc import ABC, abstractmethod
 
 from bus import MessageBus
-from events import InboundMessage
+from events import InboundMessage, OutboundMessage
 
 
 class Channel(ABC):
@@ -67,7 +67,7 @@ class Channel(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def send(self, msg) -> None:
+    async def send(self, msg: OutboundMessage) -> None:
         """
         发送出站消息到外部平台。
 
